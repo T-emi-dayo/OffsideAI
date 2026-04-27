@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+
+# Environment
+.env
+
+# Claude Code
+.claude/settings.local.json
+
+# IDE
+.vscode/
+.idea/
