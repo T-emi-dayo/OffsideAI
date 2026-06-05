@@ -19,3 +19,9 @@ venv/
 # IDE
 .vscode/
 .idea/
+
+# data
+src/data/
+# src/data/World Cup 2026 Data/
+# src/data/world cup data/
+# src/data/World Cup Historical Data/

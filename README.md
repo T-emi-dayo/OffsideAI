@@ -12,7 +12,7 @@ uv sync
 # fill in .env values, then start building
 ```
 
-`scaffold.py` replaces the `project-name` placeholder across all files and creates `.env` from `.env.example`. Delete it once setup is done.
+`scaffold.py` replaces the `OffsideAI` placeholder across all files and creates `.env` from `.env.example`. Delete it once setup is done.
 
 ## Structure
 

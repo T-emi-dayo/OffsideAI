@@ -24,9 +24,9 @@ def rename_placeholders(project_name: str) -> None:
         if path.is_file() and path.suffix in TEXT_EXTENSIONS:
             try:
                 content = path.read_text(encoding="utf-8")
-                if "project-name" in content:
+                if "OffsideAI" in content:
                     path.write_text(
-                        content.replace("project-name", project_name),
+                        content.replace("OffsideAI", project_name),
                         encoding="utf-8",
                     )
             except Exception:
