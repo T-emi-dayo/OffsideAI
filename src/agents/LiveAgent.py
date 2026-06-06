@@ -12,7 +12,6 @@ from src.schemas.state import LiveState
 
 logger = logging.getLogger(__name__)
 
-# Event types that qualify as key moments worth highlighting.
 _KEY_EVENT_TYPES = frozenset({"goal", "red_card", "penalty"})
 
 
@@ -28,6 +27,11 @@ class LiveAgent(BaseAgent):
     -----
     parse_events      : Derives running score and key moments from raw event list.
     generate_narrative: LLM writes the story-so-far as flowing prose.
+
+    Input
+    -----
+    Receives a LiveState (extends MatchInput). The `events` field must be
+    populated by the gateway before invocation — the agent does not fetch events.
     """
 
     # --- node: parse_events ---------------------------------------------
@@ -35,9 +39,6 @@ class LiveAgent(BaseAgent):
     def _parse_events(self, state: LiveState) -> dict:
         """
         Derive current score and key moments from the raw event list.
-
-        Goal events increment the running score. Goals, red cards, and
-        penalties are captured as formatted key-moment strings.
 
         Parameters
         ----------
@@ -49,14 +50,15 @@ class LiveAgent(BaseAgent):
         dict
             State update with `current_score` and `key_moments`.
         """
+        home = state["home_team"]
+        events = state.get("events") or []
+
         logger.info(
             "LiveAgent.parse_events | %s vs %s — %d events",
-            state["home_team"],
+            home,
             state["away_team"],
-            len(state.get("events", [])),
+            len(events),
         )
-        home = state["home_team"]
-        events = state.get("events", [])
 
         home_score = 0
         away_score = 0
@@ -96,8 +98,6 @@ class LiveAgent(BaseAgent):
         """
         Generate the live match narrative from parsed state.
 
-        Uses structured output to guarantee the LLM returns the expected schema.
-
         Parameters
         ----------
         state : LiveState
@@ -107,26 +107,21 @@ class LiveAgent(BaseAgent):
         Returns
         -------
         dict
-            State update with `narrative` key.
+            State update with `narrative` key (a single string).
         """
         logger.info("LiveAgent.generate_narrative | invoking LLM")
         system_prompt = self.get_prompt("live_generate_narrative")
-        home_team = state.get("home_team", "Home Team")
-        away_team = state.get("away_team", "Away Team")
+        home_team = state["home_team"]
+        away_team = state["away_team"]
         score = state.get("current_score") or {"home": 0, "away": 0}
         key_moments = state.get("key_moments") or []
         events = state.get("events") or []
-        narrative = state.get("narrative") or []
 
         user_msg = (
-            f"Generate a live narrative for "
-            f"{home_team} vs {away_team}.\n\n"
-            f"<current_score>"
-            f"{home_team} {score} {away_team}"
-            f"</current_score>\n\n"
+            f"Generate a live narrative for {home_team} vs {away_team}.\n\n"
+            f"<current_score>{home_team} {score['home']} — {score['away']} {away_team}</current_score>\n\n"
             f"<key_moments>\n{json.dumps(key_moments, indent=2)}\n</key_moments>\n\n"
             f"<all_events>\n{json.dumps(events, default=str, indent=2)}\n</all_events>"
-            f"<previous narratives>\n{json.dumps(narrative, default=str, indent=2)}\n</previous narratives>"
         )
         messages = self.ai_service.build_messages(user=user_msg, system=system_prompt)
 
@@ -136,9 +131,9 @@ class LiveAgent(BaseAgent):
                 schema=LiveNarrative,
                 temperature=0.7,
             )
-            narrative: LiveNarrative = result.parsed
+            live: LiveNarrative = result.parsed
             logger.info("LiveAgent.generate_narrative | narrative generated successfully")
-            return {"narrative": narrative.narrative}
+            return {"narrative": live.narrative}
         except Exception as exc:
             logger.error("LiveAgent.generate_narrative | LLM call failed: %s", exc)
             return {"errors": [f"generate_narrative failed: {exc}"]}

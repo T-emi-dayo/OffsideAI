@@ -11,12 +11,15 @@ Or via the project script:
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import api_router
+from app.services.DataService import get_data_service
 from src.config.settings import settings
 
 # ---------------------------------------------------------------------------
@@ -28,6 +31,24 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Lifespan — manage DataService HTTP client
+# ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Initialise and cleanly close the DataService HTTP client."""
+    ds = get_data_service()
+    await ds.initialize()
+    logger.info("DataService HTTP client initialised.")
+    try:
+        yield
+    finally:
+        await ds.close()
+        logger.info("DataService HTTP client closed.")
+
 
 # ---------------------------------------------------------------------------
 # App
@@ -43,6 +64,7 @@ app = FastAPI(
     version=settings.version,
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------

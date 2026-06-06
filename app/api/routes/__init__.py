@@ -1,12 +1,23 @@
-"""Aggregated API router — mounts all agent routes under /api."""
+"""
+Aggregated API router.
+
+Route structure (all prefixed /api):
+  GET  /fixtures                    — list all WC fixtures
+  GET  /fixtures/today              — today's fixtures
+  GET  /fixtures/live               — currently live fixtures
+  GET  /match/{id}                  — match metadata
+  GET  /match/{id}/preview          — PreMatchAgent report
+  GET  /match/{id}/narrative        — LiveAgent narrative
+  GET  /match/{id}/report           — PostMatchAgent report
+  GET  /match/{id}/prediction       — ML outcome probabilities
+  POST /match/{id}/chat             — ChatAgent Q&A
+"""
 
 from fastapi import APIRouter
 
-from app.api.routes import chat, live, postmatch, prematch
+from app.api.routes import fixtures, match
 
 api_router = APIRouter(prefix="/api")
 
-api_router.include_router(prematch.router, tags=["Pre-Match"])
-api_router.include_router(live.router, tags=["Live"])
-api_router.include_router(postmatch.router, tags=["Post-Match"])
-api_router.include_router(chat.router, tags=["Chat"])
+api_router.include_router(fixtures.router, tags=["Fixtures"])
+api_router.include_router(match.router, tags=["Match"])

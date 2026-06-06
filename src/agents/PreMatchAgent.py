@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import logging
-import pickle
 from typing import Optional
 
 from langgraph.graph import StateGraph, START, END
@@ -10,14 +9,15 @@ from langgraph.graph.state import CompiledStateGraph
 
 from src.agents.BaseAgent import BaseAgent
 from src.schemas.responses import PreMatchReport
-from src.schemas.state import PreMatchInput, PreMatchState
+from src.schemas.state import PreMatchState
 from src.tools.match_tools import get_h2h_record, get_team_recent_form
 from src.tools.ranking_tools import get_fifa_ranking
-from src.tools.web_search_tool import get_search_tool
 from src.tools.team_tools import get_team_wc_history
+from src.tools.web_search_tool import get_search_tool
 from src.services.PredictionService import PredictionService
 
 logger = logging.getLogger(__name__)
+
 
 class PreMatchAgent(BaseAgent):
     """
@@ -29,8 +29,8 @@ class PreMatchAgent(BaseAgent):
 
     Nodes
     -----
-    gather_context  : Calls CSV data tools to collect h2h, form, rankings, and WC history.
-    get_prediction  : Stub node — returns placeholder probabilities until ML model is wired.
+    gather_context  : Calls query tools to collect h2h, form, rankings, WC history.
+    get_prediction  : Calls PredictionService (Dixon-Coles model) for outcome probabilities.
     generate_report : LLM synthesises all context into a structured report narrative.
     """
 
@@ -64,28 +64,21 @@ class PreMatchAgent(BaseAgent):
 
         context: dict = {}
 
-        # --- head-to-head ---
         context["head_to_head"] = _safe_tool_call(
             get_h2h_record, {"team_a": home, "team_b": away}, "h2h", state
         )
-
-        # --- recent form ---
         context["home_recent_form"] = _safe_tool_call(
             get_team_recent_form, {"team": home}, f"{home}_form", state
         )
         context["away_recent_form"] = _safe_tool_call(
             get_team_recent_form, {"team": away}, f"{away}_form", state
         )
-
-        # --- world cup history ---
         context["home_wc_history"] = _safe_tool_call(
             get_team_wc_history, {"team": home}, f"{home}_wc_history", state
         )
         context["away_wc_history"] = _safe_tool_call(
             get_team_wc_history, {"team": away}, f"{away}_wc_history", state
         )
-
-        # --- FIFA rankings ---
         context["home_ranking"] = _safe_tool_call(
             get_fifa_ranking, {"team": home, "date": date}, f"{home}_ranking", state
         )
@@ -100,10 +93,10 @@ class PreMatchAgent(BaseAgent):
 
     def _get_prediction(self, state: PreMatchState) -> dict:
         """
-        Return a prediction dict for the fixture.
+        Run the Dixon-Coles ML model and return outcome probabilities.
 
-        Stub implementation — ML model (Poisson + XGBoost) not yet integrated.
-        Probabilities are equal estimates and must not be presented as model output.
+        World Cup fixtures always use neutral-venue prediction (no home advantage).
+        Non-WC fixtures use the model's built-in home advantage term.
 
         Parameters
         ----------
@@ -115,29 +108,31 @@ class PreMatchAgent(BaseAgent):
         dict
             State update with populated `prediction` key.
         """
+        home = state["home_team"]
+        away = state["away_team"]
+        neutral = state.get("competition_type", "world_cup") == "world_cup"
+
         logger.info(
-            "PreMatchAgent.get_prediction | stub returning equal-probability estimates"
+            "PreMatchAgent.get_prediction | %s vs %s | neutral=%s",
+            home,
+            away,
+            neutral,
         )
-        
-        home_team = state["home_team"]
-        away_team = state["away_team"]
-        competition_type = state.get("competition_type", "unknown_competition")
-        
-        if competition_type == "world_cup":
+
+        try:
             prediction = PredictionService().predict_results(
-                home_team=home_team,
-                away_team=away_team,
-                neutral= True
+                home_team=home,
+                away_team=away,
+                neutral=neutral,
             )
-        if competition_type != "world_cup":
-            prediction = PredictionService().predict_results(
-                home_team=home_team,
-                away_team=away_team,
-                neutral= False
-            )
-            
-        state["prediction"] = prediction
-        return state
+            logger.info("PreMatchAgent.get_prediction | prediction: %s", prediction)
+            return {"prediction": prediction}
+        except Exception as exc:
+            logger.warning("PreMatchAgent.get_prediction | model failed: %s", exc)
+            return {
+                "prediction": None,
+                "errors": [f"prediction failed: {exc}"],
+            }
 
     # --- node: generate_report ------------------------------------------
 
@@ -169,15 +164,14 @@ class PreMatchAgent(BaseAgent):
             f"<context>\n{json.dumps(context, default=str, indent=2)}\n</context>\n\n"
             f"<prediction>\n{json.dumps(prediction, default=str, indent=2)}\n</prediction>"
         )
-        
+
         messages = self.ai_service.build_messages(user=user_message, system=system)
-        
         web_search_tool = get_search_tool()
 
         try:
             result = self.ai_service.invoke_structured(
                 messages=messages,
-                tools= [web_search_tool],
+                tools=[web_search_tool],
                 schema=PreMatchReport,
                 temperature=0.3,
             )
@@ -199,7 +193,7 @@ class PreMatchAgent(BaseAgent):
         CompiledStateGraph
             Compiled graph ready for invocation.
         """
-        graph = StateGraph(PreMatchInput)
+        graph = StateGraph(PreMatchState)
 
         graph.add_node("gather_context", self._gather_context)
         graph.add_node("get_prediction", self._get_prediction)

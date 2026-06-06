@@ -3,12 +3,9 @@ Unified request and response schemas for all Offside AI API endpoints.
 
 Design contract
 ---------------
-`AgentResponse` is the single, stable envelope every endpoint returns.
-The `data` field is the only part that varies — each agent has its own
-typed payload (PreMatchData, LiveData, etc.).
-
-Adding new fields to an agent ONLY requires updating its data model here.
-The envelope shape, error handling, and route structure are unchanged.
+`AgentResponse[T]` is the envelope for all agent endpoints.
+`DataResponse[T]`  is the envelope for all data/fixture endpoints.
+Each has a typed `data` payload — the only part that varies per endpoint.
 """
 
 from __future__ import annotations
@@ -21,49 +18,90 @@ T = TypeVar("T")
 
 
 # ---------------------------------------------------------------------------
-# Response envelope
+# Response envelopes
 # ---------------------------------------------------------------------------
 
 class ResponseMeta(BaseModel):
     """Execution metadata attached to every response."""
 
     timestamp: str = Field(description="ISO 8601 UTC timestamp of response creation.")
-    duration_ms: float = Field(description="Total agent execution time in milliseconds.")
+    duration_ms: float = Field(description="Total execution time in milliseconds.")
 
 
 class AgentResponse(BaseModel, Generic[T]):
     """
-    Unified response envelope for all Offside AI agent endpoints.
+    Unified envelope for all agent endpoints (preview, narrative, report, chat).
 
-    Fields
-    ------
-    success : bool
-        False only when the agent could not produce any output.
-        Partial results with non-fatal errors return success=True with
-        a non-empty `errors` list.
-    agent : str
-        Which agent produced this response.
-    match_id : str
-        Fixture this response is anchored to.
-    data : T
-        Agent-specific payload. See the typed variants below.
-    errors : list[str]
-        Non-fatal errors accumulated during the run. Partial output is
-        still available in `data` when errors are present.
-    meta : ResponseMeta
-        Timing and execution metadata.
+    success=False only when the agent could not produce any output at all.
+    Partial results with non-fatal errors return success=True with a non-empty
+    `errors` list.
     """
 
     success: bool
-    agent: Literal["prematch", "live", "postmatch", "chat"]
+    agent: Literal["prematch", "live", "postmatch", "chat", "prediction"]
     match_id: str
     data: T
     errors: list[str] = Field(default_factory=list)
     meta: ResponseMeta
 
 
+class DataResponse(BaseModel, Generic[T]):
+    """Envelope for data endpoints (fixtures, match metadata)."""
+
+    data: T
+    meta: ResponseMeta
+
+
 # ---------------------------------------------------------------------------
-# Per-agent data payloads
+# Fixture data models
+# ---------------------------------------------------------------------------
+
+class FixtureScore(BaseModel):
+    home: Optional[int] = None
+    away: Optional[int] = None
+
+
+class FixtureTeam(BaseModel):
+    name: str
+
+
+class FixtureItem(BaseModel):
+    """A single fixture as returned by GET /fixtures."""
+
+    id: int
+    stage: str
+    group: Optional[str] = None
+    utc_date: str
+    match_state: str = Field(description="pre | live | post")
+    home_team: FixtureTeam
+    away_team: FixtureTeam
+    score: FixtureScore
+
+
+class FixtureListData(BaseModel):
+    count: int
+    fixtures: list[FixtureItem]
+
+
+# ---------------------------------------------------------------------------
+# Match metadata model
+# ---------------------------------------------------------------------------
+
+class MatchMetadata(BaseModel):
+    """Match metadata returned by GET /match/{id}."""
+
+    match_id: str
+    home_team: str
+    away_team: str
+    match_date: str
+    stage: str
+    group: Optional[str] = None
+    match_state: str = Field(description="pre | live | post")
+    score: FixtureScore
+
+
+# ---------------------------------------------------------------------------
+# Agent data payloads
 # ---------------------------------------------------------------------------
 
 class PreMatchData(BaseModel):
@@ -71,7 +109,7 @@ class PreMatchData(BaseModel):
 
     prediction: Optional[dict] = Field(
         default=None,
-        description="ML model outcome probabilities: {home_win, draw, away_win}.",
+        description="Dixon-Coles model output: {p_home, p_draw, p_away, lambda_home, lambda_away}.",
     )
     report_narrative: Optional[str] = Field(
         default=None,
@@ -109,6 +147,18 @@ class PostMatchData(BaseModel):
     )
 
 
+class PredictionData(BaseModel):
+    """Output payload for GET /match/{id}/prediction."""
+
+    home_team: str
+    away_team: str
+    p_home: Optional[float] = Field(default=None, description="Home win probability.")
+    p_draw: Optional[float] = Field(default=None, description="Draw probability.")
+    p_away: Optional[float] = Field(default=None, description="Away win probability.")
+    lambda_home: Optional[float] = Field(default=None, description="Expected goals, home team.")
+    lambda_away: Optional[float] = Field(default=None, description="Expected goals, away team.")
+
+
 class ChatMessage(BaseModel):
     """A single turn in a conversation."""
 
@@ -137,65 +187,14 @@ class ChatData(BaseModel):
 # Request models
 # ---------------------------------------------------------------------------
 
-class PreMatchRequest(BaseModel):
-    """Request body for POST /api/prematch."""
-
-    match_id: str
-    home_team: str
-    away_team: str
-    competition_type: str = Field(default="world_cup")
-    stage: str = Field(default="Group Stage")
-    match_date: str = Field(description="Match date in YYYY-MM-DD format.")
-
-
-class MatchEvent(BaseModel):
-    """A single match event used by both Live and PostMatch requests."""
-
-    minute: int
-    event_type: str = Field(
-        description="goal | red_card | penalty | assist | yellow_card | subst"
-    )
-    team: str
-    player: str
-    detail: str = ""
-
-
-class LiveRequest(BaseModel):
-    """Request body for POST /api/live."""
-
-    match_id: str
-    home_team: str
-    away_team: str
-    competition_type: str = Field(default="world_cup")
-    events: list[MatchEvent]
-
-
-class PostMatchRequest(BaseModel):
-    """Request body for POST /api/postmatch."""
-
-    match_id: str
-    home_team: str
-    away_team: str
-    competition_type: str = Field(default="world_cup")
-    final_score: dict = Field(
-        description='Final scoreline: {"home": int, "away": int}.'
-    )
-    match_events: list[MatchEvent]
-    pre_match_analysis: dict = Field(
-        default_factory=dict,
-        description="Output from the pre-match agent run for this fixture.",
-    )
-
-
 class ChatRequest(BaseModel):
-    """Request body for POST /api/chat.
+    """
+    Request body for POST /match/{id}/chat.
 
-    The API is stateless — the caller owns the conversation history and
-    sends the full `history` list on every request. The response includes
-    an updated `history` ready for the next call.
+    The API is stateless — the caller owns conversation history and sends
+    the full `history` list on every request.
     """
 
-    match_id: str
     home_team: str
     away_team: str
     match_state: Literal["pre", "live", "post"]

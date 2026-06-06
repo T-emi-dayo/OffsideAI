@@ -26,6 +26,13 @@ class PostMatchAgent(BaseAgent):
     analyse_match   : Extracts key moments and player highlights from events;
                       LLM produces a match summary and tactical analysis.
     generate_report : LLM synthesises all analysis into the full report narrative.
+
+    Input
+    -----
+    Receives a PostMatchState (extends MatchInput). The gateway populates:
+    - `events`            — full event log from the API
+    - `final_score`       — {"home": int, "away": int}
+    - `pre_match_analysis`— cached pre-match output (may be empty {})
     """
 
     # --- node: analyse_match --------------------------------------------
@@ -33,9 +40,6 @@ class PostMatchAgent(BaseAgent):
     def _analyse_match(self, state: PostMatchState) -> dict:
         """
         Extract structured data from events and generate LLM analysis.
-
-        Key moments and player highlights are derived deterministically from
-        the event log before the LLM call — the LLM only handles synthesis.
 
         Parameters
         ----------
@@ -53,11 +57,11 @@ class PostMatchAgent(BaseAgent):
             state["home_team"],
             state["away_team"],
         )
-        events = state.get("match_events") or []
-        score = state["final_score"]
+        events = state.get("events") or []
+        score = state.get("final_score") or {"home": 0, "away": 0}
         pre_match = state.get("pre_match_analysis") or {}
 
-        # --- deterministic extraction from event log ---
+        # deterministic extraction from event log
         key_moments: list[str] = []
         player_performances: dict[str, list[str]] = {}
 
@@ -70,20 +74,12 @@ class PostMatchAgent(BaseAgent):
 
             if event_type == "goal":
                 key_moments.append(f"{minute}' GOAL — {player} ({team}): {detail}")
-                player_performances.setdefault(player, []).append(
-                    f"Scored ({minute}')"
-                )
+                player_performances.setdefault(player, []).append(f"Scored ({minute}')")
             elif event_type == "red_card":
-                key_moments.append(
-                    f"{minute}' RED CARD — {player} ({team}): {detail}"
-                )
-                player_performances.setdefault(player, []).append(
-                    f"Red card ({minute}')"
-                )
+                key_moments.append(f"{minute}' RED CARD — {player} ({team}): {detail}")
+                player_performances.setdefault(player, []).append(f"Red card ({minute}')")
             elif event_type == "assist":
-                player_performances.setdefault(player, []).append(
-                    f"Assist ({minute}')"
-                )
+                player_performances.setdefault(player, []).append(f"Assist ({minute}')")
 
         player_highlights = [
             f"{player}: {', '.join(actions)}"
@@ -96,19 +92,13 @@ class PostMatchAgent(BaseAgent):
             len(player_highlights),
         )
 
-        # --- LLM analysis ---
         system = self.get_prompt("postmatch_analyse")
         user_msg = (
             f"Analyse this World Cup match: "
-            f"{state['home_team']} {score['home']} — "
-            f"{score['away']} {state['away_team']}.\n\n"
+            f"{state['home_team']} {score['home']} — {score['away']} {state['away_team']}.\n\n"
             f"<key_moments>\n{json.dumps(key_moments, indent=2)}\n</key_moments>\n\n"
-            f"<player_highlights>\n"
-            f"{json.dumps(player_highlights, indent=2)}\n"
-            f"</player_highlights>\n\n"
-            f"<pre_match_context>\n"
-            f"{json.dumps(pre_match, default=str, indent=2)}\n"
-            f"</pre_match_context>"
+            f"<player_highlights>\n{json.dumps(player_highlights, indent=2)}\n</player_highlights>\n\n"
+            f"<pre_match_context>\n{json.dumps(pre_match, default=str, indent=2)}\n</pre_match_context>"
         )
         messages = self.ai_service.build_messages(user=user_msg, system=system)
 
@@ -140,8 +130,6 @@ class PostMatchAgent(BaseAgent):
         """
         Synthesise match analysis into the full post-match report.
 
-        Uses structured output to guarantee the LLM returns the expected schema.
-
         Parameters
         ----------
         state : PostMatchState
@@ -155,22 +143,15 @@ class PostMatchAgent(BaseAgent):
         """
         logger.info("PostMatchAgent.generate_report | invoking LLM")
         system = self.get_prompt("postmatch_generate_report")
-        score = state["final_score"]
+        score = state.get("final_score") or {"home": 0, "away": 0}
 
         user_msg = (
             f"Write the complete post-match report for "
-            f"{state['home_team']} {score['home']} — "
-            f"{score['away']} {state['away_team']}.\n\n"
+            f"{state['home_team']} {score['home']} — {score['away']} {state['away_team']}.\n\n"
             f"<match_summary>\n{state.get('match_summary', '')}\n</match_summary>\n\n"
-            f"<tactical_analysis>\n"
-            f"{state.get('tactical_analysis', '')}\n"
-            f"</tactical_analysis>\n\n"
-            f"<key_moments>\n"
-            f"{json.dumps(state.get('key_moments') or [], indent=2)}\n"
-            f"</key_moments>\n\n"
-            f"<player_highlights>\n"
-            f"{json.dumps(state.get('player_highlights') or [], indent=2)}\n"
-            f"</player_highlights>"
+            f"<tactical_analysis>\n{state.get('tactical_analysis', '')}\n</tactical_analysis>\n\n"
+            f"<key_moments>\n{json.dumps(state.get('key_moments') or [], indent=2)}\n</key_moments>\n\n"
+            f"<player_highlights>\n{json.dumps(state.get('player_highlights') or [], indent=2)}\n</player_highlights>"
         )
         messages = self.ai_service.build_messages(user=user_msg, system=system)
 
@@ -181,9 +162,7 @@ class PostMatchAgent(BaseAgent):
                 temperature=0.3,
             )
             report: PostMatchReport = result.parsed
-            logger.info(
-                "PostMatchAgent.generate_report | report generated successfully"
-            )
+            logger.info("PostMatchAgent.generate_report | report generated successfully")
             return {"full_report": report.full_report}
         except Exception as exc:
             logger.error("PostMatchAgent.generate_report | LLM call failed: %s", exc)

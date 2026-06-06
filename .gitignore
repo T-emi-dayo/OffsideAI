@@ -22,6 +22,11 @@ venv/
 
 # data
 src/data/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
 # src/data/World Cup 2026 Data/
 # src/data/world cup data/
 # src/data/World Cup Historical Data/

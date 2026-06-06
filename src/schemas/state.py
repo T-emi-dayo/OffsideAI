@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import operator
 from enum import Enum
-from typing import Annotated, Optional, List
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, Field
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import NotRequired, TypedDict
 from langgraph.graph import MessagesState
 
 
@@ -15,31 +14,43 @@ class MatchState(str, Enum):
     PRE = "pre"
     LIVE = "live"
     POST = "post"
-    
-# class MatchPrediction(TypedDict):
-#     home_team: str
-#     away_team: str
-#     lambda_home: float          # Expected goals, home team
-#     lambda_away: float          # Expected goals, away team
-#     home_win_prob: float
-#     draw_prob: float
-#     away_win_prob: float
-#     most_likely_score: tuple    # e.g. (1, 0)
-#     score_distribution: dict    # {(i, j): probability}
 
 
-class BaseMatchState(TypedDict):
+# ---------------------------------------------------------------------------
+# Unified match input — shared by PreMatchAgent, LiveAgent, PostMatchAgent
+# ---------------------------------------------------------------------------
+
+class MatchInput(TypedDict):
     """
-    Common state fields shared across all match agents.
+    Unified input state accepted by all match agents (except ChatAgent).
+
+    The gateway populates this from the football-data.org API response before
+    invoking any agent graph. Optional fields are only populated when relevant
+    to the specific agent being invoked.
 
     Fields
     ------
     match_id : str
-        Unique fixture identifier.
+        football-data.org integer match ID as a string.
+    competition_type : str
+        "world_cup" for all World Cup fixtures.
     home_team : str
-        Home team name.
+        Home (first-named) team — canonical FIFA name.
     away_team : str
-        Away team name.
+        Away (second-named) team — canonical FIFA name.
+    match_date : str
+        Match date in YYYY-MM-DD format.
+    stage : str
+        Tournament stage string e.g. "Group Stage", "Quarter Final".
+    match_state : str
+        Current lifecycle phase: "pre" | "live" | "post".
+    events : list[dict]
+        Normalised match events — populated for live and post requests.
+        Each event: {match_id, minute, event_type, team, player, detail}.
+    final_score : dict
+        Final scoreline {"home": int, "away": int} — populated for post requests.
+    pre_match_analysis : dict
+        Cached PreMatchAgent output for this fixture — populated for post requests.
     errors : list[str]
         Accumulates non-fatal errors across nodes without overwriting.
     """
@@ -48,119 +59,76 @@ class BaseMatchState(TypedDict):
     competition_type: str
     home_team: str
     away_team: str
-    errors: Annotated[list[str], operator.add]
-    
-    
-class ReportNarrative(BaseModel):
-    """
-    Structured output schema for the final report narrative.
-
-    Fields
-    ------
-    introduction : str
-        Opening summary of the match.
-    key_moments_section : str
-        Narrative description of key moments.
-    player_highlights_section : str
-        Commentary on standout player performances.
-    tactical_analysis_section : str
-        Insights into tactical battles and strategies.
-    conclusion : str
-        Closing thoughts and implications for future matches.
-    """
-
-    introduction: str = Field(..., description="Opening summary of the match.")
-    match_context : str = Field(default="The background context of the match, including h2h, form, rankings, and WC history")
-    head_to_head_section: str = Field(..., description="Narrative description of head-to-head encounters.")
-    player_highlights_section: str = Field(..., description="Commentary on standout player performances.")
-    tactical_analysis_section: str = Field(..., description="Insights into tactical battles and strategies.")
-    conclusion: str = Field(..., description="Closing thoughts and implications for future matches.")
-
-    
-class PreMatchInput(TypedDict):
-    """
-    Full state schema for the PreMatchAgent graph.
-
-    Required fields are supplied by the caller at invocation time.
-    Optional fields are populated by graph nodes during execution.
-    """
-
-    # --- caller-supplied ---
-    match_id: str
-    competition_type: str
-    home_team: str
-    away_team: str
     match_date: str
     stage: str
+    match_state: str
 
-    # --- populated by nodes ---
-    context: NotRequired[Optional[dict]]
-    prediction: NotRequired[Optional[dict]]
-    report_narrative: NotRequired[Optional[str]]
+    # optional — only populated when relevant
+    events: NotRequired[list[dict]]
+    final_score: NotRequired[dict]
+    pre_match_analysis: NotRequired[dict]
+
     errors: NotRequired[Annotated[list[str], operator.add]]
 
 
-class PreMatchState(BaseMatchState):
-    prediction: Optional[dict]
-    report_narrative: Optional[ReportNarrative]
+# ---------------------------------------------------------------------------
+# Per-agent graph states — extend MatchInput with output fields
+# ---------------------------------------------------------------------------
 
-
-class LiveState(BaseMatchState):
+class PreMatchState(MatchInput):
     """
-    State for the LiveAgent graph.
+    Graph state for PreMatchAgent.
 
-    Fields
-    ------
-    events : list[dict]
-        Ordered list of match events. Each event must include keys:
-        minute, event_type, team, player, detail.
-    narrative : Optional[str]
-        Generated story-so-far narrative.
-    key_moments : Optional[list[str]]
-        Formatted strings for goal, red card, and penalty events.
-    current_score : Optional[dict]
-        Running score derived from goal events: {"home": int, "away": int}.
-    """
-    home_team: str 
-    away_team: str
-    events: List[dict]
-    narrative: List[str]
-    key_moments: Optional[list[str]]
-    current_score: Optional[dict]
-
-class PostMatchState(BaseMatchState):
-    """
-    State for the PostMatchAgent graph.
-
-    Fields
-    ------
-    final_score : dict
-        Final scoreline: {"home": int, "away": int}.
-    pre_match_analysis : dict
-        Stored output from the PreMatchAgent run for this fixture.
-    match_events : list[dict]
-        Full event log from the persistent match store.
-    match_summary : Optional[str]
-        LLM-generated match summary from the analysis node.
-    key_moments : Optional[list[str]]
-        Extracted key moments from event parsing.
-    player_highlights : Optional[list[str]]
-        Per-player performance strings.
-    tactical_analysis : Optional[str]
-        Tactical observations from the analysis node.
-    full_report : Optional[str]
-        Final synthesised post-match report narrative.
+    Output fields populated by agent nodes:
+    context          — raw tool results (h2h, form, rankings, WC history)
+    prediction       — ML model output dict from PredictionService
+    report_narrative — final LLM-synthesised pre-match report
     """
 
-    final_score: dict
-    pre_match_analysis: dict
-    match_events: list[dict]
-    match_summary: Optional[str]
-    key_moments: Optional[list[str]]
-    player_highlights: Optional[list[str]]
-    tactical_analysis: Optional[str]
-    full_report: Optional[str]
+    context: NotRequired[Optional[dict]]
+    prediction: NotRequired[Optional[dict]]
+    report_narrative: NotRequired[Optional[str]]
 
+
+class LiveState(MatchInput):
+    """
+    Graph state for LiveAgent.
+
+    Input: events populated from MatchInput.
+    Output fields populated by agent nodes:
+    current_score — running score derived from goal events
+    key_moments   — formatted strings for goals, red cards, penalties
+    narrative     — LLM-generated story-so-far prose
+    """
+
+    current_score: NotRequired[Optional[dict]]
+    key_moments: NotRequired[Optional[list[str]]]
+    narrative: NotRequired[Optional[str]]
+
+
+class PostMatchState(MatchInput):
+    """
+    Graph state for PostMatchAgent.
+
+    Input: events and final_score populated from MatchInput.
+    Output fields populated by agent nodes:
+    key_moments       — extracted key moments from event log
+    player_highlights — per-player performance strings
+    match_summary     — concise LLM match summary
+    tactical_analysis — tactical observations from analysis node
+    full_report       — final synthesised post-match report narrative
+    """
+
+    key_moments: NotRequired[Optional[list[str]]]
+    player_highlights: NotRequired[Optional[list[str]]]
+    match_summary: NotRequired[Optional[str]]
+    tactical_analysis: NotRequired[Optional[str]]
+    full_report: NotRequired[Optional[str]]
+
+
+# ---------------------------------------------------------------------------
+# Chat agent state — MessagesState-based, separate from MatchInput
+# ---------------------------------------------------------------------------
 
 class ChatState(MessagesState):
     """
@@ -178,11 +146,11 @@ class ChatState(MessagesState):
         Away team name.
     match_state : MatchState
         Current lifecycle phase of the fixture.
-    live_context : Optional[dict]
+    live_context : dict | None
         Current match events when match_state is LIVE.
     errors : list[str]
         Accumulates non-fatal errors across nodes.
-    sources_used : Optional[list[str]]
+    sources_used : list[str] | None
         Tool names called during the response loop, for transparency.
     """
 
