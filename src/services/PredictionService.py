@@ -1,14 +1,27 @@
 from __future__ import annotations
 
 import logging
-import pickle
 
+import joblib
 import numpy as np
 from scipy.stats import poisson
 
 logger = logging.getLogger(__name__)
 
 _MODEL_PATH = "src/data/models/dixon_coles_model.pkl"
+
+# Maps football-data.org / FIFA canonical names → names used in training data
+_TEAM_NAME_MAP: dict[str, str] = {
+    "United States":          "USA",
+    "Korea Republic":         "Korea Republic",   # passthrough — already correct
+    "South Korea":            "Korea Republic",
+    "North Korea":            "Korea DPR",
+    "DR Congo":               "Congo DR",
+    "Republic of Ireland":    "Republic of Ireland",
+    "Ivory Coast":            "Côte d'Ivoire",
+    "Cape Verde":             "Cabo Verde",
+    "Chinese Taipei":         "Chinese Taipei",
+}
 
 
 class PredictionService:
@@ -21,13 +34,17 @@ class PredictionService:
     """
 
     def __init__(self) -> None:
-        with open(_MODEL_PATH, "rb") as fh:
-            self.model = pickle.load(fh)
+        self.model = joblib.load(_MODEL_PATH)
         logger.info("PredictionService: model loaded from %s", _MODEL_PATH)
 
     # -----------------------------------------------------------------------
     # Public API
     # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _normalize(team: str) -> str:
+        """Translate external team names to the names used in model training data."""
+        return _TEAM_NAME_MAP.get(team, team)
 
     def predict_results(
         self,
@@ -53,6 +70,8 @@ class PredictionService:
         dict
             {"p_home": float, "p_draw": float, "p_away": float}
         """
+        home_team = self._normalize(home_team)
+        away_team = self._normalize(away_team)
         if neutral:
             params = self.model.get_params()
             return self._predict_neutral(home_team, away_team, params)

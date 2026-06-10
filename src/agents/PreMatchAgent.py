@@ -110,7 +110,7 @@ class PreMatchAgent(BaseAgent):
         """
         home = state["home_team"]
         away = state["away_team"]
-        neutral = state.get("competition_type", "world_cup") == "world_cup"
+        neutral = True
 
         logger.info(
             "PreMatchAgent.get_prediction | %s vs %s | neutral=%s",
@@ -155,7 +155,7 @@ class PreMatchAgent(BaseAgent):
         logger.info("PreMatchAgent.generate_report | invoking LLM")
         system = self.get_prompt("prematch_generate_report")
         context = state.get("context") or {}
-        prediction = state.get("prediction") or {}
+        prediction = state.get("prediction")  # already set by get_prediction node
 
         user_message = (
             f"Generate a complete pre-match intelligence report for "
@@ -166,18 +166,23 @@ class PreMatchAgent(BaseAgent):
         )
 
         messages = self.ai_service.build_messages(user=user_message, system=system)
-        web_search_tool = get_search_tool()
+        # web_search_tool = get_search_tool()
 
         try:
             result = self.ai_service.invoke_structured(
                 messages=messages,
-                tools=[web_search_tool],
                 schema=PreMatchReport,
                 temperature=0.3,
             )
             report: PreMatchReport = result.parsed
             logger.info("PreMatchAgent.generate_report | report generated successfully")
-            return {"report_narrative": report.report_narrative}
+            return {
+                "match_overview":       report.match_overview,
+                "team_analysis":        report.team_analysis,
+                "head_to_head":         report.head_to_head,
+                "prediction_reasoning": report.prediction_reasoning,
+                "verdict":              report.verdict,
+            }
         except Exception as exc:
             logger.error("PreMatchAgent.generate_report | LLM call failed: %s", exc)
             return {"errors": [f"generate_report failed: {exc}"]}

@@ -73,16 +73,22 @@ def build_match_input(match: dict) -> dict:
     -------
     dict
         Dict with all required MatchInput keys populated.
+
+    Notes
+    -----
+    Knockout-stage fixtures that don't have confirmed teams yet return
+    null for homeTeam.name / awayTeam.name. These are normalised to
+    placeholder strings so downstream code never receives None.
     """
     match_id = str(match["id"])
-    home_team = match["homeTeam"]["name"]
-    away_team = match["awayTeam"]["name"]
+    home_team = (match.get("homeTeam") or {}).get("name") or "TBD"
+    away_team = (match.get("awayTeam") or {}).get("name") or "TBD"
     utc_date: str = match.get("utcDate", "")
     match_date = utc_date[:10] if utc_date else ""
     stage = stage_label(match.get("stage", ""))
     match_state = match_state_from_status(match.get("status", "SCHEDULED"))
 
-    score_raw = match.get("score", {}).get("fullTime", {})
+    score_raw = (match.get("score") or {}).get("fullTime") or {}
 
     return {
         "match_id": match_id,
@@ -163,15 +169,17 @@ def normalize_events(match: dict, match_id: str) -> list[dict]:
 
 def to_fixture_item(match: dict) -> FixtureItem:
     """Convert a football-data.org match object to a FixtureItem response model."""
-    score_raw = match.get("score", {}).get("fullTime", {})
+    score_raw = (match.get("score") or {}).get("fullTime") or {}
+    home_name = (match.get("homeTeam") or {}).get("name") or "TBD"
+    away_name = (match.get("awayTeam") or {}).get("name") or "TBD"
     return FixtureItem(
         id=match["id"],
         stage=stage_label(match.get("stage", "")),
         group=match.get("group"),
         utc_date=match.get("utcDate", ""),
         match_state=match_state_from_status(match.get("status", "SCHEDULED")),
-        home_team=FixtureTeam(name=match["homeTeam"]["name"]),
-        away_team=FixtureTeam(name=match["awayTeam"]["name"]),
+        home_team=FixtureTeam(name=home_name),
+        away_team=FixtureTeam(name=away_name),
         score=FixtureScore(
             home=score_raw.get("home"),
             away=score_raw.get("away"),

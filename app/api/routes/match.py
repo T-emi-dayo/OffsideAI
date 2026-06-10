@@ -33,6 +33,7 @@ from app.views.schemas import (
     DataResponse,
     LiveData,
     MatchMetadata,
+    MatchPrediction,
     PostMatchData,
     PreMatchData,
     PredictionData,
@@ -153,17 +154,43 @@ async def get_preview(
         raise HTTPException(status_code=500, detail=str(exc))
 
     errors: list[str] = result.get("errors") or []
-    prediction = result.get("prediction")
-    report_narrative = result.get("report_narrative")
+
+    raw_pred = result.get("prediction")
+    prediction = (
+        MatchPrediction(
+            p_home=raw_pred["p_home"],
+            p_draw=raw_pred["p_draw"],
+            p_away=raw_pred["p_away"],
+            lambda_home=raw_pred["lambda_home"],
+            lambda_away=raw_pred["lambda_away"],
+        )
+        if raw_pred
+        else None
+    )
+
+    match_overview       = result.get("match_overview")
+    team_analysis        = result.get("team_analysis")
+    head_to_head         = result.get("head_to_head")
+    prediction_reasoning = result.get("prediction_reasoning")
+    verdict              = result.get("verdict")
+
+    has_report = any([match_overview, team_analysis, verdict])
 
     duration_ms = (time.perf_counter() - start) * 1000
     logger.info("preview | completed in %.0fms | errors=%d", duration_ms, len(errors))
 
     return AgentResponse(
-        success=report_narrative is not None,
+        success=has_report,
         agent="prematch",
         match_id=str(match_id),
-        data=PreMatchData(prediction=prediction, report_narrative=report_narrative),
+        data=PreMatchData(
+            prediction=prediction,
+            match_overview=match_overview,
+            team_analysis=team_analysis,
+            head_to_head=head_to_head,
+            prediction_reasoning=prediction_reasoning,
+            verdict=verdict,
+        ),
         errors=errors,
         meta=ResponseMeta(timestamp=now_iso(), duration_ms=round(duration_ms, 2)),
     )
@@ -424,10 +451,27 @@ def _build_lc_messages(history: list[ChatMessage], new_message: str) -> list:
 
 
 def _extract_reply(messages: list) -> str:
-    """Return the content of the last AIMessage in the message list."""
+    """
+    Return the text content of the last AIMessage in the message list.
+
+    Gemini returns content as a list of blocks: [{'type': 'text', 'text': '...'}].
+    Plain string content is also handled for other providers.
+    """
     for msg in reversed(messages):
-        if isinstance(msg, AIMessage) and msg.content:
-            return msg.content
+        if not isinstance(msg, AIMessage):
+            continue
+        content = msg.content
+        if isinstance(content, str) and content:
+            return content
+        if isinstance(content, list):
+            parts = [
+                block.get("text", "")
+                for block in content
+                if isinstance(block, dict) and block.get("type") == "text"
+            ]
+            text = "".join(parts).strip()
+            if text:
+                return text
     return ""
 
 

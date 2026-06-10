@@ -80,14 +80,23 @@ class PreMatchState(MatchInput):
     Graph state for PreMatchAgent.
 
     Output fields populated by agent nodes:
-    context          — raw tool results (h2h, form, rankings, WC history)
-    prediction       — ML model output dict from PredictionService
-    report_narrative — final LLM-synthesised pre-match report
+    context              — raw tool results (h2h, form, rankings, WC history)
+    prediction           — ML model output dict from PredictionService
+    match_overview       — scene-setter section from LLM
+    team_analysis        — side-by-side team breakdown from LLM
+    head_to_head         — H2H record interpretation from LLM
+    prediction_reasoning — contextual explanation of ML probabilities from LLM
+    key_players          — players to watch from LLM
+    verdict              — final prediction sentence from LLM
     """
 
     context: NotRequired[Optional[dict]]
     prediction: NotRequired[Optional[dict]]
-    report_narrative: NotRequired[Optional[str]]
+    match_overview: NotRequired[Optional[str]]
+    team_analysis: NotRequired[Optional[str]]
+    head_to_head: NotRequired[Optional[str]]
+    prediction_reasoning: NotRequired[Optional[str]]
+    verdict: NotRequired[Optional[str]]
 
 
 class LiveState(MatchInput):

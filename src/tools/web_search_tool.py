@@ -12,8 +12,6 @@ from langchain_google_community import GoogleSearchAPIWrapper
 # Import Config
 from src.config import settings
 
-config = settings
-
 logger = logging.getLogger(__name__)
 
 # ==============================
@@ -23,8 +21,8 @@ class GoogleSearchTool:
     """Google Custom Search API wrapper"""
     
     def __init__(self, api_key: str, cse_id: str, num_results: int = 3):
-        self.api_key = Config.GOOGLE_API_KEY
-        self.cse_id = Config.GOOGLE_CSE_ID
+        self.api_key = settings.GOOGLE_API_KEY if settings.GOOGLE_API_KEY else None
+        self.cse_id = settings.GOOGLE_CSE_ID if settings.GOOGLE_CSE_ID else None
         self.num_results = num_results
         self.search_wrapper = GoogleSearchAPIWrapper(
             google_api_key=api_key,
@@ -116,8 +114,8 @@ def get_search_tool(prefer_google: bool = True, num_results: int = 3) -> Optiona
     """
     Factory function to get the appropriate search tool as a LangChain Tool.
     """
-    google_api_key = Config.GOOGLE_API_KEY
-    cse_id = Config.GOOGLE_CSE_ID
+    google_api_key = settings.GOOGLE_API_KEY if settings.GOOGLE_API_KEY else None
+    cse_id = settings.GOOGLE_CSE_ID if settings.GOOGLE_CSE_ID else None
     
     # Try Google Search first if preferred and credentials available
     if prefer_google and google_api_key and cse_id:

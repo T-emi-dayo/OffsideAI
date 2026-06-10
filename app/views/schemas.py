@@ -62,7 +62,7 @@ class FixtureScore(BaseModel):
 
 
 class FixtureTeam(BaseModel):
-    name: str
+    name: Optional[str] = None
 
 
 class FixtureItem(BaseModel):
@@ -104,17 +104,30 @@ class MatchMetadata(BaseModel):
 # Agent data payloads
 # ---------------------------------------------------------------------------
 
-class PreMatchData(BaseModel):
-    """Output payload for the PreMatchAgent."""
+class MatchPrediction(BaseModel):
+    """Dixon-Coles ML model output for a fixture."""
 
-    prediction: Optional[dict] = Field(
-        default=None,
-        description="Dixon-Coles model output: {p_home, p_draw, p_away, lambda_home, lambda_away}.",
-    )
-    report_narrative: Optional[str] = Field(
-        default=None,
-        description="LLM-generated pre-match analysis narrative.",
-    )
+    p_home: float = Field(description="Home win probability.")
+    p_draw: float = Field(description="Draw probability.")
+    p_away: float = Field(description="Away win probability.")
+    lambda_home: float = Field(description="Expected goals, home team.")
+    lambda_away: float = Field(description="Expected goals, away team.")
+
+
+class PreMatchData(BaseModel):
+    """
+    Output payload for GET /match/{id}/preview.
+
+    Contains the ML prediction and six structured LLM report sections.
+    All fields are Optional — partial results are returned on non-fatal errors.
+    """
+
+    prediction: Optional[MatchPrediction] = None
+    match_overview: Optional[str] = None
+    team_analysis: Optional[str] = None
+    head_to_head: Optional[str] = None
+    prediction_reasoning: Optional[str] = None
+    verdict: Optional[str] = None
 
 
 class LiveData(BaseModel):

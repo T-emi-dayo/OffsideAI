@@ -13,11 +13,23 @@ class BaseResponse(BaseModel):
 
 
 class PreMatchReport(BaseModel):
-    """Structured output for the PreMatchAgent report generation node."""
+    """Structured LLM output for the PreMatchAgent — six discrete sections."""
 
-    prediction : str = Field(default="The explained prediction of the ml model")
-    match_context : str = Field(default="The background context of the match, including h2h, form, rankings, and WC history")
-    report_narrative : str = Field(default="The final pre-match report narrative synthesised by the LLM, combining the prediction and context into a coherent analysis.")
+    match_overview: str = Field(
+        description="2-3 sentence scene-setter: what this fixture means in the tournament."
+    )
+    team_analysis: str = Field(
+        description="Side-by-side breakdown of both teams: current form, FIFA ranking, key strengths and weaknesses."
+    )
+    head_to_head: str = Field(
+        description="Historical H2H record and what the pattern tells us about this fixture."
+    )
+    prediction_reasoning: str = Field(
+        description="Contextual explanation of the ML model's win/draw/loss probabilities and expected goals."
+    )
+    verdict: str = Field(
+        description="1-2 sentence final prediction summarising the most likely outcome and margin."
+    )
 
 # ---------------------------------------------------------------------------
 # Live agent output schemas
