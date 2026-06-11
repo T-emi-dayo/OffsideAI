@@ -1,0 +1,482 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Bebas+Neue&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0D0F12;--card:#161A20;--elevated:#1E242D;
+    --accent:#00E676;--blue:#4F9EFF;--red:#FF4545;
+    --text:#F0F2F5;--muted:#6B7280;--border:rgba(255,255,255,0.07);
+    --font-main:'DM Sans',sans-serif;--font-display:'Bebas Neue',sans-serif;
+  }
+  body{background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:14px;min-height:600px}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:52px;border-bottom:1px solid var(--border);background:rgba(13,15,18,0.95)}
+  .wordmark{font-family:var(--font-display);font-size:20px;color:var(--accent);letter-spacing:1px}
+  .nav-links{display:flex;gap:20px}
+  .nav-link{color:var(--muted);font-size:13px;cursor:pointer;padding:4px 0;border-bottom:2px solid transparent;transition:color .2s}
+  .nav-link.active,.nav-link:hover{color:var(--text)}
+  .nav-link.active{border-bottom-color:var(--accent)}
+  .view{display:none}
+  .view.active{display:block}
+
+  /* FIXTURE HUB */
+  .hub-hero{padding:28px 24px 20px;border-bottom:1px solid var(--border)}
+  .hub-hero h1{font-family:var(--font-display);font-size:32px;letter-spacing:1px;color:var(--text)}
+  .hub-hero p{color:var(--muted);font-size:13px;margin-top:4px}
+  .hub-tabs{display:flex;gap:0;padding:0 24px;border-bottom:1px solid var(--border)}
+  .tab{padding:12px 16px;font-size:13px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  .fixtures-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px 24px}
+  .fixture-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:background .2s;position:relative}
+  .fixture-card:hover{background:var(--elevated)}
+  .badge{position:absolute;top:12px;right:12px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:100px;text-transform:uppercase;letter-spacing:.5px}
+  .badge.live{background:rgba(255,69,69,0.15);color:var(--red);display:flex;align-items:center;gap:4px}
+  .badge.preview{background:rgba(79,158,255,0.15);color:var(--blue)}
+  .badge.fulltime{background:rgba(107,114,128,0.15);color:var(--muted)}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .fixture-teams{display:flex;align-items:center;justify-content:space-between;margin-top:8px;gap:8px}
+  .team-side{display:flex;flex-direction:column;align-items:center;gap:4px;flex:1}
+  .team-flag{font-size:22px}
+  .team-name{font-size:12px;font-weight:600;color:var(--text)}
+  .score-center{font-family:var(--font-display);font-size:26px;color:var(--text);min-width:40px;text-align:center}
+  .vs-center{font-size:12px;color:var(--muted);min-width:24px;text-align:center}
+  .fixture-meta{margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}
+  .fixture-time{font-size:11px;color:var(--muted)}
+  .fixture-stage{font-size:11px;color:var(--muted)}
+
+  /* MATCH VIEW */
+  .match-header{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:16px}
+  .back-btn{color:var(--muted);cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px}
+  .back-btn:hover{color:var(--text)}
+  .match-header-info{flex:1}
+  .match-title{font-family:var(--font-display);font-size:22px;letter-spacing:.5px}
+  .match-subtitle{font-size:12px;color:var(--muted);margin-top:2px}
+  .match-body{display:grid;grid-template-columns:1fr 280px;gap:0;height:calc(100vh - 160px);overflow:hidden}
+  .main-panel{padding:16px 20px;overflow-y:auto;border-right:1px solid var(--border)}
+  .sidebar{padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+
+  /* MATCH STATE TABS */
+  .state-tabs{display:flex;gap:8px;margin-bottom:16px}
+  .state-tab{padding:6px 14px;border-radius:100px;font-size:12px;cursor:pointer;border:1px solid var(--border);color:var(--muted);transition:all .2s}
+  .state-tab.active-preview{background:rgba(79,158,255,0.15);border-color:rgba(79,158,255,0.3);color:var(--blue)}
+  .state-tab.active-live{background:rgba(255,69,69,0.15);border-color:rgba(255,69,69,0.3);color:var(--red)}
+  .state-tab.active-ft{background:rgba(107,114,128,0.15);border-color:rgba(107,114,128,0.3);color:var(--muted)}
+
+  /* PANEL SECTIONS */
+  .panel-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px}
+  .section-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
+  
+  /* TEAM COMPARISON */
+  .team-compare{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+  .team-compare-side{display:flex;flex-direction:column;gap:2px}
+  .team-compare-side.right{text-align:right}
+  .tc-name{font-size:16px;font-weight:700}
+  .tc-flag{font-size:20px}
+  .tc-rank{font-size:11px;color:var(--muted)}
+  .tc-vs{font-family:var(--font-display);font-size:14px;color:var(--muted);padding:0 8px}
+  .stat-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin-top:8px}
+  .stat-val{font-size:13px;font-weight:600}
+  .stat-val.right{text-align:right}
+  .stat-label{font-size:10px;color:var(--muted);text-align:center}
+  .stat-bar-wrap{grid-column:1/-1;display:flex;height:4px;border-radius:4px;overflow:hidden;margin-top:2px}
+  .stat-bar-home{background:var(--accent);transition:width .6s}
+  .stat-bar-away{background:var(--blue);flex:1}
+
+  /* AI REPORT */
+  .report-text{font-size:13px;line-height:1.7;color:#C8CDD5}
+  .report-section{margin-bottom:14px}
+  .report-section h4{font-size:12px;font-weight:600;color:var(--accent);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+
+  /* PREDICTION WIDGET */
+  .pred-teams{display:flex;justify-content:space-between;margin-bottom:12px}
+  .pred-team{font-size:12px;font-weight:600}
+  .pred-team.right{text-align:right}
+  .prob-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+  .prob-label{font-size:11px;color:var(--muted);width:48px}
+  .prob-bar-wrap{flex:1;height:6px;background:rgba(255,255,255,0.08);border-radius:3px;overflow:hidden}
+  .prob-bar{height:100%;border-radius:3px;transition:width .8s}
+  .prob-pct{font-size:12px;font-weight:600;width:32px;text-align:right}
+  .pred-expected{font-size:11px;color:var(--muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+  .pred-reasoning{font-size:11px;color:#8B96A5;margin-top:8px;line-height:1.6;font-style:italic}
+
+  /* SCORE CARD */
+  .scoreboard{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
+  .score-team{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .score-flag{font-size:28px}
+  .score-name{font-size:13px;font-weight:600}
+  .score-digits{font-family:var(--font-display);font-size:48px;color:var(--text);line-height:1;padding:0 20px}
+  .score-min{font-size:11px;color:var(--red);font-weight:600;text-align:center;margin-top:4px}
+
+  /* EVENTS */
+  .event-item{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
+  .event-item:last-child{border-bottom:none}
+  .event-min{font-size:11px;color:var(--muted);width:28px;flex-shrink:0}
+  .event-icon{font-size:14px;width:20px;text-align:center}
+  .event-desc{font-size:12px;color:var(--text)}
+  .event-team{font-size:10px;color:var(--muted)}
+
+  /* NARRATIVE */
+  .narrative-btn{width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--blue);font-size:13px;cursor:pointer;transition:all .2s;font-family:var(--font-main)}
+  .narrative-btn:hover{background:rgba(79,158,255,0.08);border-color:rgba(79,158,255,0.3)}
+  .narrative-text{font-size:13px;line-height:1.7;color:#C8CDD5;margin-top:10px}
+
+  /* KEY STATS SIDEBAR */
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat-box{background:rgba(255,255,255,0.03);border-radius:8px;padding:10px;text-align:center}
+  .stat-box-val{font-size:18px;font-weight:700;color:var(--text)}
+  .stat-box-label{font-size:10px;color:var(--muted);margin-top:2px}
+
+  /* CHAT */
+  .chat-toggle{width:100%;padding:10px 14px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:13px;cursor:pointer;text-align:left;display:flex;justify-content:space-between;align-items:center;font-family:var(--font-main);transition:all .2s}
+  .chat-toggle:hover{border-color:rgba(255,255,255,0.15);color:var(--text)}
+  .chat-expanded{background:var(--card);border:1px solid var(--border);border-radius:12px;display:flex;flex-direction:column;height:260px}
+  .chat-messages{flex:1;overflow-y:auto;padding:12px}
+  .chat-msg{margin-bottom:10px;max-width:90%}
+  .chat-msg.user{margin-left:auto;text-align:right}
+  .chat-bubble{display:inline-block;padding:7px 11px;border-radius:10px;font-size:12px;line-height:1.5}
+  .user .chat-bubble{background:rgba(79,158,255,0.2);color:var(--blue)}
+  .ai .chat-bubble{background:rgba(255,255,255,0.05);color:var(--text)}
+  .chat-input-row{display:flex;gap:6px;padding:10px;border-top:1px solid var(--border)}
+  .chat-input{flex:1;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font-main);outline:none}
+  .chat-send{background:var(--accent);color:#0D0F12;border:none;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font-main)}
+
+  /* POST MATCH */
+  .player-card{background:rgba(0,230,118,0.06);border:1px solid rgba(0,230,118,0.15);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px}
+  .player-avatar{width:36px;height:36px;border-radius:50%;background:rgba(0,230,118,0.15);display:flex;align-items:center;justify-content:center;font-size:16px}
+  .player-name{font-size:13px;font-weight:600}
+  .player-stat{font-size:11px;color:var(--accent)}
+</style>
+
+<div class="nav">
+  <div class="wordmark">⚽ OFFSIDE AI</div>
+  <div class="nav-links">
+    <div class="nav-link active" onclick="showView('hub')">Fixtures</div>
+    <div class="nav-link" style="color:var(--muted);cursor:default">About</div>
+  </div>
+</div>
+
+<!-- FIXTURE HUB -->
+<div id="view-hub" class="view active">
+  <div class="hub-hero">
+    <h1>2026 FIFA WORLD CUP</h1>
+    <p>AI-powered match intelligence · All 48 matches · Group stage through the Final</p>
+  </div>
+  <div class="hub-tabs">
+    <div class="tab active">Today · 3 matches</div>
+    <div class="tab">Upcoming</div>
+    <div class="tab">Completed</div>
+  </div>
+  <div class="fixtures-grid">
+
+    <div class="fixture-card" onclick="showMatch('live')">
+      <div class="badge live"><div class="live-dot"></div>Live · 67'</div>
+      <div class="fixture-teams">
+        <div class="team-side"><div class="team-flag">🇧🇷</div><div class="team-name">Brazil</div></div>
+        <div class="score-center">2 — 1</div>
+        <div class="team-side"><div class="team-flag">🇦🇷</div><div class="team-name">Argentina</div></div>
+      </div>
+      <div class="fixture-meta">
+        <div class="fixture-time">Jun 14 · 18:00</div>
+        <div class="fixture-stage">Group C</div>
+      </div>
+    </div>
+
+    <div class="fixture-card" onclick="showMatch('preview')">
+      <div class="badge preview">Preview</div>
+      <div class="fixture-teams">
+        <div class="team-side"><div class="team-flag">🏴󠁧󠁢󠁥󠁮󠁧󠁿</div><div class="team-name">England</div></div>
+        <div class="vs-center">vs</div>
+        <div class="team-side"><div class="team-flag">🇫🇷</div><div class="team-name">France</div></div>
+      </div>
+      <div class="fixture-meta">
+        <div class="fixture-time">Jun 14 · 21:00</div>
+        <div class="fixture-stage">Group D</div>
+      </div>
+    </div>
+
+    <div class="fixture-card" onclick="showMatch('fulltime')">
+      <div class="badge fulltime">Full Time</div>
+      <div class="fixture-teams">
+        <div class="team-side"><div class="team-flag">🇩🇪</div><div class="team-name">Germany</div></div>
+        <div class="score-center">1 — 1</div>
+        <div class="team-side"><div class="team-flag">🇵🇹</div><div class="team-name">Portugal</div></div>
+      </div>
+      <div class="fixture-meta">
+        <div class="fixture-time">Jun 14 · 15:00</div>
+        <div class="fixture-stage">Group F</div>
+      </div>
+    </div>
+
+  </div>
+  <div style="padding:0 24px;color:var(--muted);font-size:12px">Click any fixture to open the match view ↑</div>
+</div>
+
+<!-- MATCH VIEW -->
+<div id="view-match" class="view">
+  <div class="match-header">
+    <div class="back-btn" onclick="showView('hub')">← Back</div>
+    <div class="match-header-info">
+      <div class="match-title" id="match-title">Brazil vs Argentina</div>
+      <div class="match-subtitle" id="match-subtitle">Group C · Jun 14, 2026</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <div class="state-tab" id="tab-preview" onclick="setMatchState('preview')">Preview</div>
+      <div class="state-tab" id="tab-live" onclick="setMatchState('live')">● Live</div>
+      <div class="state-tab" id="tab-ft" onclick="setMatchState('fulltime')">Full Time</div>
+    </div>
+  </div>
+
+  <div class="match-body">
+    <div class="main-panel" id="main-panel"></div>
+    <div class="sidebar" id="sidebar"></div>
+  </div>
+</div>
+
+<script>
+var currentState = 'preview';
+var chatOpen = false;
+var narrativeShown = false;
+
+function showView(v) {
+  document.querySelectorAll('.view').forEach(function(el){el.classList.remove('active')});
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('.nav-link').forEach(function(el){el.classList.remove('active')});
+  if(v==='hub') document.querySelector('.nav-link').classList.add('active');
+}
+
+function showMatch(state) {
+  showView('match');
+  currentState = state;
+  narrativeShown = false;
+  chatOpen = (state === 'live');
+  var titles = {preview:'England vs France', live:'Brazil vs Argentina', fulltime:'Germany vs Portugal'};
+  var subs = {preview:'Group D · Jun 14, 2026 · 21:00', live:'Group C · Jun 14, 2026 · 67\'', fulltime:'Group F · Jun 14, 2026 · FT'};
+  document.getElementById('match-title').textContent = titles[state];
+  document.getElementById('match-subtitle').textContent = subs[state];
+  renderState(state);
+}
+
+function setMatchState(s) {
+  currentState = s;
+  narrativeShown = false;
+  chatOpen = (s === 'live');
+  var titles = {preview:'England vs France', live:'Brazil vs Argentina', fulltime:'Germany vs Portugal'};
+  var subs = {preview:'Group D · Jun 14, 2026 · 21:00', live:'Group C · Jun 14, 2026 · 67\'', fulltime:'Group F · Jun 14, 2026 · FT'};
+  document.getElementById('match-title').textContent = titles[s];
+  document.getElementById('match-subtitle').textContent = subs[s];
+  renderState(s);
+}
+
+function renderState(s) {
+  ['preview','live','ft'].forEach(function(t){
+    var el = document.getElementById('tab-'+t);
+    el.className = 'state-tab';
+  });
+  var tabMap = {preview:'tab-preview',live:'tab-live',fulltime:'tab-ft'};
+  var classMap = {preview:'active-preview',live:'active-live',fulltime:'active-ft'};
+  document.getElementById(tabMap[s]).classList.add(classMap[s]);
+
+  if(s==='preview') renderPreview();
+  else if(s==='live') renderLive();
+  else renderFullTime();
+}
+
+function renderPreview() {
+  document.getElementById('main-panel').innerHTML = `
+    <div class="panel-section">
+      <div class="section-label">Team Comparison</div>
+      <div class="team-compare">
+        <div class="team-compare-side"><div class="tc-flag">🏴󠁧󠁢󠁥󠁮󠁧󠁿</div><div class="tc-name">England</div><div class="tc-rank">FIFA #5</div></div>
+        <div class="tc-vs">vs</div>
+        <div class="team-compare-side right"><div class="tc-flag">🇫🇷</div><div class="tc-name">France</div><div class="tc-rank">FIFA #2</div></div>
+      </div>
+      <div class="stat-row" style="margin-top:14px">
+        <div class="stat-val" style="color:var(--accent)">1.8</div>
+        <div class="stat-label">Avg goals scored</div>
+        <div class="stat-val right" style="color:var(--blue)">2.1</div>
+        <div class="stat-bar-wrap"><div class="stat-bar-home" style="width:46%"></div><div class="stat-bar-away"></div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-val" style="color:var(--accent)">W4 D1 L0</div>
+        <div class="stat-label">Last 5 matches</div>
+        <div class="stat-val right" style="color:var(--blue)">W5 D0 L0</div>
+        <div class="stat-bar-wrap"><div class="stat-bar-home" style="width:44%"></div><div class="stat-bar-away"></div></div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">AI Match Preview</div>
+      <div class="report-section"><h4>England</h4><div class="report-text">England arrive at this fixture in their best form in a generation, with Kane and Bellingham combining for 7 goals in the qualifying campaign. Manager Southgate has settled on a disciplined 4-3-3 that absorbs pressure and counters with pace — a system that has conceded just once in five matches.</div></div>
+      <div class="report-section"><h4>France</h4><div class="report-text">France remain the tournament favourites, with Mbappé operating at his peak alongside a midfield engine in Tchouaméni that few sides can match for work rate and range. Their only vulnerability is a tendency to drop deep when protecting a lead — something England will look to exploit.</div></div>
+      <div class="report-section"><h4>Head to Head</h4><div class="report-text">In 32 meetings, England hold a slim advantage with 13 wins to France's 12. However, in major tournaments, France have won 3 of the last 4 encounters. The most recent meeting — the 2022 World Cup quarter-final — ended 2-1 to France despite England's statistical dominance.</div></div>
+    </div>
+  `;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="panel-section">
+      <div class="section-label">Prediction</div>
+      <div class="pred-teams"><div class="pred-team">England</div><div class="pred-team right">France</div></div>
+      <div class="prob-row"><div class="prob-label" style="font-size:11px;color:var(--muted)">ENG win</div><div class="prob-bar-wrap"><div class="prob-bar" style="width:33%;background:var(--accent)"></div></div><div class="prob-pct" style="font-size:12px;font-weight:600;color:var(--accent)">33%</div></div>
+      <div class="prob-row"><div class="prob-label" style="font-size:11px;color:var(--muted)">Draw</div><div class="prob-bar-wrap"><div class="prob-bar" style="width:24%;background:var(--muted)"></div></div><div class="prob-pct" style="font-size:12px;font-weight:600;color:var(--muted)">24%</div></div>
+      <div class="prob-row"><div class="prob-label" style="font-size:11px;color:var(--muted)">FRA win</div><div class="prob-bar-wrap"><div class="prob-bar" style="width:43%;background:var(--blue)"></div></div><div class="prob-pct" style="font-size:12px;font-weight:600;color:var(--blue)">43%</div></div>
+      <div class="pred-expected">Expected goals: 1.1 — 1.6</div>
+      <div class="pred-reasoning">"France's superior squad depth and Mbappé's form tilt the balance, though England's defensive structure makes a low-scoring affair the most likely outcome."</div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">Key Stats</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-box-val">32</div><div class="stat-box-label">H2H meetings</div></div>
+        <div class="stat-box"><div class="stat-box-val">13</div><div class="stat-box-label">ENG wins</div></div>
+        <div class="stat-box"><div class="stat-box-val">7</div><div class="stat-box-label">Draws</div></div>
+        <div class="stat-box"><div class="stat-box-val">12</div><div class="stat-box-label">FRA wins</div></div>
+      </div>
+    </div>
+    <div class="panel-section" style="padding:0;overflow:hidden">
+      <button class="chat-toggle" onclick="toggleChat()" style="border-radius:12px;padding:14px 16px">
+        <span>💬 Ask about this match</span><span style="font-size:16px" id="chat-arrow">+</span>
+      </button>
+    </div>
+    <div id="chat-area"></div>
+  `;
+}
+
+function renderLive() {
+  document.getElementById('main-panel').innerHTML = `
+    <div class="panel-section">
+      <div class="section-label">Live Score · 67'</div>
+      <div class="scoreboard">
+        <div class="score-team"><div class="score-flag">🇧🇷</div><div class="score-name">Brazil</div></div>
+        <div style="text-align:center">
+          <div class="score-digits">2 — 1</div>
+          <div class="score-min">● 67'</div>
+        </div>
+        <div class="score-team"><div class="score-flag">🇦🇷</div><div class="score-name">Argentina</div></div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">Match Events</div>
+      <div class="event-item"><div class="event-min">23'</div><div class="event-icon">⚽</div><div><div class="event-desc">Vinicius Jr.</div><div class="event-team">Brazil</div></div></div>
+      <div class="event-item"><div class="event-min">41'</div><div class="event-icon">⚽</div><div><div class="event-desc">Messi (pen.)</div><div class="event-team">Argentina</div></div></div>
+      <div class="event-item"><div class="event-min">54'</div><div class="event-icon">🟨</div><div><div class="event-desc">Otamendi</div><div class="event-team">Argentina</div></div></div>
+      <div class="event-item"><div class="event-min">67'</div><div class="event-icon">⚽</div><div><div class="event-desc">Rodrygo</div><div class="event-team">Brazil</div></div></div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">AI Narrative</div>
+      <div id="narrative-area">
+        <button class="narrative-btn" onclick="showNarrative()">Generate Narrative ↗</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="panel-section" style="flex:1">
+      <div class="section-label">Match Chat</div>
+      <div class="chat-expanded">
+        <div class="chat-messages">
+          <div class="chat-msg ai"><div class="chat-bubble">I'm tracking this match live. Brazil lead 2–1 after 67 minutes. Ask me anything.</div></div>
+          <div class="chat-msg user"><div class="chat-bubble">Who scored Brazil's second?</div></div>
+          <div class="chat-msg ai"><div class="chat-bubble">Rodrygo scored in the 67th minute, tapping in from close range after a Vinicius Jr. cutback. It's his first World Cup goal.</div></div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" type="text" placeholder="Ask about this match..." id="live-chat-input" onkeydown="if(event.key==='Enter')sendChat()" />
+          <button class="chat-send" onclick="sendChat()">Send</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFullTime() {
+  document.getElementById('main-panel').innerHTML = `
+    <div class="panel-section">
+      <div class="section-label">Full Time</div>
+      <div class="scoreboard">
+        <div class="score-team"><div class="score-flag">🇩🇪</div><div class="score-name">Germany</div></div>
+        <div style="text-align:center"><div class="score-digits">1 — 1</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Full Time</div></div>
+        <div class="score-team"><div class="score-flag">🇵🇹</div><div class="score-name">Portugal</div></div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">Post-Match AI Report</div>
+      <div class="report-section"><h4>Match Summary</h4><div class="report-text">A fiercely contested Group F opener ended all square, with both sides cancelling each other out in a match that was decided more by defensive quality than attacking flair. Germany's equaliser in the 79th minute denied Portugal what would have been a significant early tournament advantage.</div></div>
+      <div class="report-section"><h4>Key Moments</h4><div class="report-text">Cristiano Ronaldo opened the scoring from the spot in the 38th minute after a VAR review confirmed a handball. Germany's response grew increasingly desperate before Kai Havertz bundled home from a corner to restore parity with 11 minutes remaining.</div></div>
+      <div class="report-section"><h4>Tactical Observations</h4><div class="report-text">Portugal's high press disrupted Germany's build-up play in the first half, but Nagelsmann's half-time adjustments — switching to a back three — gave Germany greater stability and eventually the platform to equalise.</div></div>
+    </div>
+  `;
+  document.getElementById('sidebar').innerHTML = `
+    <div class="panel-section">
+      <div class="section-label">Player of the Match</div>
+      <div class="player-card">
+        <div class="player-avatar">⭐</div>
+        <div><div class="player-name">Kai Havertz</div><div class="player-stat">1 goal · 89 touches</div></div>
+      </div>
+    </div>
+    <div class="panel-section">
+      <div class="section-label">Stats</div>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="stat-box-val">54%</div><div class="stat-box-label">GER possession</div></div>
+        <div class="stat-box"><div class="stat-box-val">46%</div><div class="stat-box-label">POR possession</div></div>
+        <div class="stat-box"><div class="stat-box-val">14</div><div class="stat-box-label">GER shots</div></div>
+        <div class="stat-box"><div class="stat-box-val">9</div><div class="stat-box-label">POR shots</div></div>
+      </div>
+    </div>
+    <div class="panel-section" style="padding:0;overflow:hidden">
+      <button class="chat-toggle" onclick="toggleChat()" style="border-radius:12px;padding:14px 16px">
+        <span>💬 Ask about this match</span><span style="font-size:16px" id="chat-arrow">+</span>
+      </button>
+    </div>
+    <div id="chat-area"></div>
+  `;
+}
+
+function showNarrative() {
+  narrativeShown = true;
+  document.getElementById('narrative-area').innerHTML = `
+    <div class="narrative-text">
+      After 67 minutes, this Clasico del Mundo is living up to every expectation. Brazil took a 23rd-minute lead through Vinicius Jr., whose mesmeric dribble past three defenders set the tone for the evening. Argentina hit back before half-time through Messi's penalty — awarded after a clear foul on Di Maria — but Rodrygo's clinical finish in the 67th has the Seleção back in front and looking the more composed side. The question now is whether Argentina's midfield, with Otamendi already booked, can withstand the pressure of the final quarter.
+    </div>
+  `;
+}
+
+function toggleChat() {
+  chatOpen = !chatOpen;
+  var arrow = document.getElementById('chat-arrow');
+  var area = document.getElementById('chat-area');
+  if(chatOpen) {
+    if(arrow) arrow.textContent = '−';
+    if(area) area.innerHTML = `
+      <div class="chat-expanded" style="margin-top:-1px;border-top-left-radius:0;border-top-right-radius:0">
+        <div class="chat-messages">
+          <div class="chat-msg ai"><div class="chat-bubble">Ask me anything about this match or the World Cup.</div></div>
+        </div>
+        <div class="chat-input-row">
+          <input class="chat-input" type="text" placeholder="Type a question..." />
+          <button class="chat-send">Send</button>
+        </div>
+      </div>
+    `;
+  } else {
+    if(arrow) arrow.textContent = '+';
+    if(area) area.innerHTML = '';
+  }
+}
+
+function sendChat() {
+  var input = document.getElementById('live-chat-input');
+  if(!input || !input.value.trim()) return;
+  var msgs = document.querySelector('.chat-messages');
+  var userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg user';
+  userMsg.innerHTML = '<div class="chat-bubble">'+input.value+'</div>';
+  msgs.appendChild(userMsg);
+  var aiMsg = document.createElement('div');
+  aiMsg.className = 'chat-msg ai';
+  aiMsg.innerHTML = '<div class="chat-bubble" style="color:var(--muted);font-style:italic">Thinking…</div>';
+  msgs.appendChild(aiMsg);
+  msgs.scrollTop = msgs.scrollHeight;
+  input.value = '';
+  setTimeout(function(){
+    aiMsg.innerHTML = '<div class="chat-bubble">Based on historical data, Brazil have won 6 of their last 8 World Cup encounters with Argentina. The current match trajectory favours a Brazil victory if they maintain their defensive shape.</div>';
+    msgs.scrollTop = msgs.scrollHeight;
+  }, 1200);
+}
+
+renderState('preview');
+</script>

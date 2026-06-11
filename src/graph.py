@@ -1,15 +1,25 @@
-from langgraph.graph import StateGraph, START, END
-from src.schemas.state import AgentState
+from src.agents.PreMatchAgent import PreMatchAgent
+from src.agents.LiveAgent import LiveAgent
+from src.agents.PostMatchAgent import PostMatchAgent
+from src.agents.ChatAgent import ChatAgent
+from src.agents.PredictionAgent import PredictionAgent
 
 
-def build_graph() -> StateGraph:
-    graph = StateGraph(AgentState)
+def build_prematch_graph():
+    return PreMatchAgent().build()
 
-    # TODO: add nodes
-    # graph.add_node("node_name", node_fn)
 
-    # TODO: add edges
-    # graph.add_edge(START, "node_name")
-    # graph.add_edge("node_name", END)
+def build_live_graph():
+    return LiveAgent().build()
 
-    return graph.compile()
+
+def build_postmatch_graph():
+    return PostMatchAgent().build()
+
+
+def build_chat_graph():
+    return ChatAgent().build()
+
+
+def build_prediction_graph():
+    return PredictionAgent().build()
