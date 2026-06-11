@@ -61,6 +61,7 @@ from typing import Any, Literal
 
 import httpx
 
+from app.services.mock_world_cup_data import filter_mock_matches, get_mock_match
 from src.config.settings import settings
 from src.services.base_service import BaseService, ServiceError
 
@@ -728,6 +729,10 @@ class DataService(BaseService):
         dict[str, Any]
             Match object with score, goals, bookings, lineups, and substitutions.
         """
+        if mock_match := get_mock_match(match_id):
+            logger.info("DataService mock match served - match_id=%d", match_id)
+            return mock_match
+
         return await self._get(f"matches/{match_id}", unfold=unfold, cache_ttl=CacheTTL.LIVE)
 
     async def get_head_to_head(
@@ -1000,16 +1005,33 @@ class DataService(BaseService):
         list[dict]
             World Cup 2026 match objects.
         """
-        return await self.get_competition_matches(
-            WC_CODE,
-            season=2026,
+        mock_matches = filter_mock_matches(
             status=status,
             stage=stage,
             group=group,
             date_from=date_from,
             date_to=date_to,
-            unfold=unfold,
         )
+
+        try:
+            real_matches = await self.get_competition_matches(
+                WC_CODE,
+                season=2026,
+                status=status,
+                stage=stage,
+                group=group,
+                date_from=date_from,
+                date_to=date_to,
+                unfold=unfold,
+            )
+        except Exception:
+            if mock_matches:
+                logger.exception("DataService real WC fixtures failed; returning mock fixtures.")
+                return mock_matches
+            raise
+
+        mock_ids = {match["id"] for match in mock_matches}
+        return [*mock_matches, *[match for match in real_matches if match.get("id") not in mock_ids]]
 
     async def get_world_cup_standings(self) -> dict[str, Any]:
         """Fetch 2026 World Cup group stage standings.

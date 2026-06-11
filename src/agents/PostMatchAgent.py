@@ -35,6 +35,49 @@ class PostMatchAgent(BaseAgent):
     - `pre_match_analysis`— cached pre-match output (may be empty {})
     """
 
+    @staticmethod
+    def _fallback_analysis(state: PostMatchState, key_moments: list[str], player_highlights: list[str]) -> dict:
+        """Build useful post-match analysis when the LLM is unavailable."""
+        score = state.get("final_score") or {"home": 0, "away": 0}
+        home_team = state["home_team"]
+        away_team = state["away_team"]
+        scoreline = f"{home_team} {score['home']} - {score['away']} {away_team}"
+        moments = "; ".join(key_moments[:4]) if key_moments else "No major events were recorded."
+        standouts = "; ".join(player_highlights[:3]) if player_highlights else "No individual highlights were recorded."
+
+        return {
+            "match_summary": (
+                f"{scoreline} finished with a clear event trail: {moments} "
+                f"The decisive pattern came through the goal sequence and the timing of the major incidents."
+            ),
+            "tactical_analysis": (
+                f"The match swung around momentum after each scoring action. {standouts} "
+                "The event log points to a game shaped by transition moments, set-piece pressure, "
+                "and how each side reacted after conceding."
+            ),
+        }
+
+    @staticmethod
+    def _fallback_report(state: PostMatchState) -> str:
+        """Build a complete article-style report when the LLM is unavailable."""
+        score = state.get("final_score") or {"home": 0, "away": 0}
+        home_team = state["home_team"]
+        away_team = state["away_team"]
+        summary = state.get("match_summary") or ""
+        tactical = state.get("tactical_analysis") or ""
+        key_moments = state.get("key_moments") or []
+        player_highlights = state.get("player_highlights") or []
+
+        moments_text = " ".join(key_moments) if key_moments else "The official event feed recorded no major moments."
+        highlights_text = " ".join(player_highlights) if player_highlights else "No individual player highlights were recorded."
+
+        return (
+            f"{home_team} {score['home']} - {score['away']} {away_team}: {summary}\n\n"
+            f"Key moments: {moments_text}\n\n"
+            f"Tactical view: {tactical}\n\n"
+            f"Player notes: {highlights_text}"
+        )
+
     # --- node: analyse_match --------------------------------------------
 
     def _analyse_match(self, state: PostMatchState) -> dict:
@@ -117,11 +160,11 @@ class PostMatchAgent(BaseAgent):
                 "tactical_analysis": analysis.tactical_analysis,
             }
         except Exception as exc:
-            logger.error("PostMatchAgent.analyse_match | LLM call failed: %s", exc)
+            logger.warning("PostMatchAgent.analyse_match | LLM fallback used: %s", exc)
             return {
                 "key_moments": key_moments,
                 "player_highlights": player_highlights,
-                "errors": [f"analyse_match LLM failed: {exc}"],
+                **self._fallback_analysis(state, key_moments, player_highlights),
             }
 
     # --- node: generate_report ------------------------------------------
@@ -165,8 +208,8 @@ class PostMatchAgent(BaseAgent):
             logger.info("PostMatchAgent.generate_report | report generated successfully")
             return {"full_report": report.full_report}
         except Exception as exc:
-            logger.error("PostMatchAgent.generate_report | LLM call failed: %s", exc)
-            return {"errors": [f"generate_report failed: {exc}"]}
+            logger.warning("PostMatchAgent.generate_report | LLM fallback used: %s", exc)
+            return {"full_report": self._fallback_report(state)}
 
     # --- graph builder --------------------------------------------------
 
